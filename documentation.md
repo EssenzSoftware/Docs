@@ -2141,6 +2141,89 @@ if buffer.is_valid() then
 end
 ```
 
+## math
+
+### matrices
+
+matrix types for linear algebra operations commonly used in game development.
+
+#### creating matrices
+
+```lua
+local m2 = mat2x2()
+local m3 = mat3x3()
+local m4 = mat4x4()
+```
+
+#### accessing matrix elements
+
+```lua
+local m = mat4x4()
+
+m.set(0, 0, 1.0)
+m.set(0, 1, 2.0)
+m.set(1, 0, 3.0)
+m.set(1, 1, 4.0)
+
+local value = m.get(0, 0)
+print("element at [0,0]: " .. value)
+```
+
+#### matrix operations
+
+```lua
+local m1 = mat3x3()
+local m2 = mat3x3()
+
+m1.identity()
+m2.identity()
+m2.set(0, 0, 2.0)
+
+local m3 = m1 + m2
+local m4 = m1 - m2
+local m5 = m1 * m2
+local m6 = m1 * 2.0
+
+local transposed = m1.transpose()
+local inverted = m1.inverse()
+local det = m1.determinant()
+```
+
+#### matrix properties
+
+```lua
+local m = mat4x4()
+
+print("rows: " .. m.rows)
+print("columns: " .. m.columns)
+
+m.clear()
+m.identity()
+```
+
+#### practical example
+
+```lua
+local view_matrix = mat4x4()
+view_matrix.identity()
+
+view_matrix.set(0, 3, 10.0)
+view_matrix.set(1, 3, 5.0)
+view_matrix.set(2, 3, 20.0)
+
+local projection_matrix = mat4x4()
+projection_matrix.identity()
+
+local view_projection = projection_matrix * view_matrix
+
+for row = 0, 3 do
+    for col = 0, 3 do
+        local val = view_projection.get(row, col)
+        print(string.format("[%d,%d] = %.2f", row, col, val))
+    end
+end
+```
+
 ## best practices
 
 ### callback design patterns
