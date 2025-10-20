@@ -2224,6 +2224,66 @@ for row = 0, 3 do
 end
 ```
 
+### trigonometry
+
+angle conversion and field of view utilities.
+
+#### angle conversions
+
+```lua
+local rad = degrees_to_radians(90.0)
+print("90 degrees = " .. rad .. " radians")
+
+local deg = radians_to_degrees(1.5708)
+print("1.5708 radians = " .. deg .. " degrees")
+```
+
+#### field of view conversions
+
+```lua
+local aspect_ratio = 16.0 / 9.0
+
+local h_fov = 90.0
+local v_fov = horizontal_fov_to_vertical(h_fov, aspect_ratio)
+print("horizontal fov " .. h_fov .. " = vertical fov " .. v_fov)
+
+local v_fov = 60.0
+local h_fov = vertical_fov_to_horizontal(v_fov, aspect_ratio)
+print("vertical fov " .. v_fov .. " = horizontal fov " .. h_fov)
+```
+
+#### angle wrapping
+
+```lua
+local angle = 450.0
+local wrapped = wrap_angle(angle, 0.0, 360.0)
+print("450 degrees wrapped to [0, 360] = " .. wrapped)
+
+local yaw = -185.0
+local normalized = wrap_angle(yaw, -180.0, 180.0)
+print("-185 degrees normalized to [-180, 180] = " .. normalized)
+```
+
+#### practical example
+
+```lua
+local player_yaw = 370.0
+local target_yaw = -10.0
+
+player_yaw = wrap_angle(player_yaw, -180.0, 180.0)
+target_yaw = wrap_angle(target_yaw, -180.0, 180.0)
+
+local delta = target_yaw - player_yaw
+
+if delta > 180.0 then
+    delta = delta - 360.0
+elseif delta < -180.0 then
+    delta = delta + 360.0
+end
+
+print("shortest rotation: " .. delta .. " degrees")
+```
+
 ## best practices
 
 ### callback design patterns
