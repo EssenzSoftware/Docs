@@ -67,6 +67,165 @@ print("active callbacks: " .. count)
 clear_all_callbacks()
 ```
 
+### utility functions
+
+additional utility functions for enhanced scripting capabilities including bitwise operations, enhanced math, string processing, and table manipulation.
+
+## bitwise operations
+
+complete bitwise manipulation functions for memory and data processing.
+
+```lua
+local value = 0xFF00
+
+local left_shifted = bit.lshift(value, 8)
+local right_shifted = bit.rshift(value, 8)
+local arith_shifted = bit.arshift(-1024, 2)
+
+local masked = bit.band(value, 0xF0F0)
+local combined = bit.bor(value, 0x0F0F)
+local xored = bit.bxor(value, 0xFFFF)
+local inverted = bit.bnot(value)
+local rotated_right = bit.rotr(value, 4)
+local rotated_left = bit.rotl(value, 4)
+
+print("original: " .. string.format("0x%08x", value))
+print("left shift <<8: " .. string.format("0x%08x", left_shifted))
+print("right shift >>8: " .. string.format("0x%08x", right_shifted))
+print("arithmetic shift: " .. string.format("0x%08x", arith_shifted))
+print("bitwise and: " .. string.format("0x%08x", masked))
+print("bitwise or: " .. string.format("0x%08x", combined))
+print("bitwise xor: " .. string.format("0x%08x", xored))
+print("bitwise not: " .. string.format("0x%08x", inverted))
+print("rotate right 4: " .. string.format("0x%016x", rotated_right))
+print("rotate left 4: " .. string.format("0x%016x", rotated_left))
+
+-- rotation examples with 32-bit safe values
+local safe_32bit = 0x12345678
+local rotr_safe = bit.rotr(safe_32bit, 8)
+local rotl_safe = bit.rotl(safe_32bit, 8)
+print("32-bit safe rotation:")
+print("original: " .. string.format("0x%08x", safe_32bit))
+print("rotr 8: " .. string.format("0x%08x", rotr_safe))
+print("rotl 8: " .. string.format("0x%08x", rotl_safe))
+
+-- important: lua 5.1/luajit uses double-precision floating point for numbers
+-- this means values larger than 2^53 (9,007,199,254,740,992) may lose precision
+-- bitwise operations work correctly but very large 64-bit values may not roundtrip perfectly
+-- for guaranteed precision, use values within the 32-bit range (0x00000000 to 0xFFFFFFFF)
+-- or construct large values using bit operations: bit.bor(bit.lshift(high32, 32), low32)
+```
+
+## enhanced math functions
+
+additional math utilities for number type checking and conversion.
+
+```lua
+local float_val = 42.5
+local int_val = 42
+
+local converted = math.tointeger(float_val)
+local int_converted = math.tointeger(int_val)
+
+print("math.tointeger(42.5): " .. tostring(converted))
+print("math.tointeger(42): " .. tostring(int_converted))
+
+print("math.type(42.5): " .. math.type(float_val))
+print("math.type(42): " .. math.type(int_val))
+
+print("math.ult(10, 20): " .. tostring(math.ult(10, 20)))
+print("math.ult(20, 10): " .. tostring(math.ult(20, 10)))
+
+print("max integer: " .. tostring(math.maxinteger))
+print("min integer: " .. tostring(math.mininteger))
+```
+
+## string pack and unpack
+
+binary data serialization and deserialization with format specifiers.
+
+```lua
+local packed_data = string.pack("bBhHiIlLjJfd", 
+    -128, 255, -32768, 65535, 
+    -2147483648, 4294967295, 
+    -2147483648, 4294967295,
+    -9223372036854775808, 18446744073709551615,
+    3.14159, 2.718281828)
+
+print("packed size: " .. #packed_data .. " bytes")
+
+local unpacked = string.unpack("bBhHiIlLjJfd", packed_data)
+for i = 1, #unpacked - 1 do
+    print("value " .. i .. ": " .. tostring(unpacked[i]))
+end
+print("next position: " .. unpacked[#unpacked])
+```
+
+## table manipulation
+
+efficient table operations for data movement and management.
+
+```lua
+local source_table = {10, 20, 30, 40, 50}
+local destination_table = {1, 2, 3, 4, 5, 6, 7, 8}
+
+table.move(source_table, 2, 4, 3, destination_table)
+
+print("after table.move(src, 2, 4, 3, dst):")
+for i, v in ipairs(destination_table) do
+    print("dst[" .. i .. "] = " .. v)
+end
+
+local copy_table = {}
+table.move(source_table, 1, #source_table, 1, copy_table)
+print("copied table length: " .. #copy_table)
+```
+
+## utf8 string processing
+
+unicode text handling and manipulation functions.
+
+```lua
+local text = "hello world"
+local unicode_text = "café"
+
+local char_count = utf8.len(text)
+local unicode_count = utf8.len(unicode_text)
+
+print("utf8.len('hello world'): " .. char_count)
+print("utf8.len('café'): " .. unicode_count)
+
+local smiley = utf8.char(0x1F600)
+local heart = utf8.char(0x2764)
+local combined = utf8.char(0x1F600, 0x2764, 0x1F60D)
+
+print("smiley emoji: " .. smiley)
+print("combined emojis: " .. combined)
+
+local codepoints = utf8.codepoint("hello")
+print("first codepoint of 'hello': " .. codepoints[1])
+
+local h_codepoint = utf8.codepoint("hello", 1)
+local e_codepoint = utf8.codepoint("hello", 2)
+print("h codepoint: " .. h_codepoint[1])
+print("e codepoint: " .. e_codepoint[1])
+```
+
+## format specifiers reference
+
+string.pack and string.unpack format characters:
+
+- b: signed 8-bit integer
+- B: unsigned 8-bit integer  
+- h: signed 16-bit integer
+- H: unsigned 16-bit integer
+- i/l: signed 32-bit integer
+- I/L: unsigned 32-bit integer
+- j: signed 64-bit integer
+- J: unsigned 64-bit integer
+- f: 32-bit float
+- d: 64-bit double
+
 ## process manipulation
 
 ### opening processes
