@@ -437,6 +437,59 @@ local player_name_limited = process.read_string(name_address, 32)
 local wide_name = process.read_wstring(name_address + 0x100)
 ```
 
+### reading pointer chains
+
+automatically follow pointer chains to resolve final addresses. returns the final address after following all pointers, or nil if any pointer in the chain is null or invalid.
+
+**signature:** `process.read_chain(base_address, offsets)`
+
+**parameters:**
+- `base_address` (number) - starting address to begin the chain
+- `offsets` (table) - array of offsets to apply at each step
+
+**returns:**
+- number - final address after following the chain, or nil if chain is invalid
+
+**behavior:**
+1. reads pointer at `base_address`
+2. adds first offset to that pointer
+3. reads pointer at resulting address
+4. adds next offset and repeats
+5. returns final address (does not read value at final address)
+
+```lua
+local process = open_process("game.exe")
+local base = process.get_image_base()
+
+-- follow chain: [base+0x1000] + 0x10 -> [result] + 0x20 -> final address
+local player_addr = process.read_chain(base + 0x1000, {0x10, 0x20})
+
+if player_addr then
+    -- now read typed values from the resolved address
+    local health = process.read.float(player_addr)
+    local mana = process.read.float(player_addr + 0x4)
+    local position = process.read_vec3.float(player_addr + 0x10)
+else
+    print("pointer chain is broken or null")
+end
+```
+
+**caching example:**
+
+```lua
+-- resolve chain once and cache for performance
+local entity_manager = process.read_chain(base + 0x5000, {0x8, 0x18, 0x0})
+
+if entity_manager then
+    -- use cached address multiple times
+    while true do
+        local entity_count = process.read.int32(entity_manager)
+        print("entities: " .. entity_count)
+        sleep(1000)
+    end
+end
+```
+
 ### reading vectors
 
 read 2d, 3d, and 4d vectors with different data types.
@@ -550,6 +603,9 @@ local process = open_process("game.exe")
 if process.is_valid() then
     local base = process.get_image_base()
     local module = process.get_module("kernel32.dll")
+    
+    -- pointer chain resolution
+    local final_addr = process.read_chain(base + 0x1000, {0x10, 0x20, 0x8})
     
     local raw_data = process.read_raw(base, 256)
     local buffer = process.read_buffer(base, 512)
@@ -2038,6 +2094,8 @@ understanding memory layout for proper offset calculations:
 
 reading addresses and following pointer chains.
 
+#### manual chain following
+
 ```lua
 local process = open_process("game.exe")
 local base = process.get_image_base()
@@ -2045,6 +2103,67 @@ local base = process.get_image_base()
 local ptr1 = process.read.uint64(base + 0x1000)
 local ptr2 = process.read.uint64(ptr1 + 0x10)
 local final_value = process.read.float(ptr2 + 0x20)
+```
+
+#### automatic chain resolution
+
+use `read_chain` to follow pointer chains automatically. returns the final address, or nil if any pointer in the chain is invalid.
+
+```lua
+local process = open_process("game.exe")
+local base = process.get_image_base()
+
+-- follow a chain: base+0x1000 -> [ptr]+0x10 -> [ptr]+0x20
+local final_address = process.read_chain(base + 0x1000, {0x10, 0x20})
+
+if final_address then
+    local health = process.read.float(final_address)
+    local mana = process.read.float(final_address + 0x4)
+    print("health: " .. health .. ", mana: " .. mana)
+else
+    print("pointer chain is invalid")
+end
+```
+
+#### caching resolved addresses
+
+cache pointer chains for better performance:
+
+```lua
+local process = open_process("game.exe")
+local base = process.get_image_base()
+
+-- resolve once
+local player_address = process.read_chain(base + 0x2000, {0x8, 0x10, 0x0})
+
+if player_address then
+    -- read multiple values from cached address
+    while true do
+        local health = process.read.float(player_address + 0x0)
+        local position = process.read_vec3.float(player_address + 0x10)
+        
+        print("health: " .. health)
+        sleep(100)
+    end
+end
+```
+
+#### deep pointer chains
+
+handle complex multi-level pointer chains:
+
+```lua
+local process = open_process("game.exe")
+local base = process.get_image_base()
+
+-- 5-level deep chain
+local entity_list = process.read_chain(base + 0x5000, {0x18, 0x28, 0x0, 0x10, 0x8})
+
+if entity_list then
+    -- read entity count at resolved address
+    local entity_count = process.read.int32(entity_list)
+    print("found " .. entity_count .. " entities")
+end
 ```
 
 ### structure reading
