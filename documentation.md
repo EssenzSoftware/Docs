@@ -663,33 +663,9 @@ if keyboard.is_valid() then
 end
 ```
 
-### keyboard state checking
+### keystate checking
 
-check the current state of keyboard keys without simulating input.
-
-**is_key_pressed**
-
-**signature:** `is_key_pressed(vk_code)`
-
-returns true once on the transition from up to down (edge-triggered). useful for detecting single key presses without repeating.
-
-**parameters:**
-- `vk_code` (number) - virtual key code to check
-
-**returns:**
-- boolean - true only on the frame the key transitions from up to down
-
-```lua
-local VK_F1 = 0x70
-
-while true do
-    if is_key_pressed(VK_F1) then
-        print("F1 was pressed (fires once per press)")
-    end
-    
-    thread_sleep(1)
-end
-```
+check the current state of keyboard keys and mouse buttons without simulating input.
 
 **is_key_down**
 
@@ -741,21 +717,9 @@ if is_key_toggled(VK_NUMLOCK) then
 end
 ```
 
-### mouse button state checking
+**checking mouse buttons:**
 
-check the current state of mouse buttons without simulating input.
-
-**is_mouse_button_pressed**
-
-**signature:** `is_mouse_button_pressed(vk_code)`
-
-returns true once on the transition from up to down (edge-triggered). useful for detecting single mouse clicks without repeating.
-
-**parameters:**
-- `vk_code` (number) - virtual key code for mouse button (VK_LBUTTON=0x01, VK_RBUTTON=0x02, VK_MBUTTON=0x04, VK_XBUTTON1=0x05, VK_XBUTTON2=0x06)
-
-**returns:**
-- boolean - true only on the frame the button transitions from up to down
+mouse buttons use the same `is_key_down` function since they are also virtual key codes.
 
 ```lua
 local VK_LBUTTON = 0x01
@@ -763,40 +727,16 @@ local VK_RBUTTON = 0x02
 local VK_MBUTTON = 0x04
 
 while true do
-    if is_mouse_button_pressed(VK_LBUTTON) then
-        print("left mouse button clicked (fires once per click)")
+    if is_key_down(VK_LBUTTON) then
+        print("left mouse button is being held")
     end
     
-    if is_mouse_button_pressed(VK_RBUTTON) then
-        print("right mouse button clicked")
+    if is_key_down(VK_RBUTTON) then
+        print("right mouse button is being held")
     end
     
-    if is_mouse_button_pressed(VK_MBUTTON) then
-        print("middle mouse button clicked")
-    end
-    
-    thread_sleep(1)
-end
-```
-
-**is_mouse_button_down**
-
-**signature:** `is_mouse_button_down(vk_code)`
-
-returns true while the mouse button is currently held (level-triggered). useful for continuous actions like dragging.
-
-**parameters:**
-- `vk_code` (number) - virtual key code for mouse button
-
-**returns:**
-- boolean - true while the button is held down
-
-```lua
-local VK_LBUTTON = 0x01
-
-while true do
-    if is_mouse_button_down(VK_LBUTTON) then
-        print("left button is being held (fires every frame)")
+    if is_key_down(VK_MBUTTON) then
+        print("middle mouse button is being held")
     end
     
     thread_sleep(1)
@@ -808,31 +748,26 @@ end
 ```lua
 local VK_SHIFT = 0x10
 local VK_CTRL = 0x11
-local VK_F1 = 0x70
-local VK_F2 = 0x71
+local VK_SPACE = 0x20
 local VK_LBUTTON = 0x01
 local VK_RBUTTON = 0x02
 
 thread_init(2)
 
-local hotkey_callback = register_callback(function()
-    if is_key_pressed(VK_F1) then
-        if is_key_down(VK_CTRL) then
-            print("ctrl+F1 pressed")
-        else
-            print("F1 pressed")
-        end
+local input_callback = register_callback(function()
+    if is_key_down(VK_SPACE) then
+        print("space is being held")
     end
     
-    if is_key_pressed(VK_F2) and is_key_down(VK_SHIFT) then
-        print("shift+F2 pressed")
+    if is_key_down(VK_CTRL) and is_key_down(VK_SHIFT) then
+        print("ctrl+shift held together")
     end
     
-    if is_mouse_button_pressed(VK_LBUTTON) and is_key_down(VK_CTRL) then
-        print("ctrl+left click detected")
+    if is_key_down(VK_LBUTTON) and is_key_down(VK_CTRL) then
+        print("ctrl+left mouse button held")
     end
     
-    if is_mouse_button_down(VK_LBUTTON) and is_mouse_button_down(VK_RBUTTON) then
+    if is_key_down(VK_LBUTTON) and is_key_down(VK_RBUTTON) then
         print("both mouse buttons held")
     end
 end, 1)
@@ -841,7 +776,7 @@ for i = 1, 1000 do
     thread_poll(0, 10)
 end
 
-unregister_callback(hotkey_callback)
+unregister_callback(input_callback)
 thread_shutdown()
 ```
 ```
