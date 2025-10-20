@@ -5,6 +5,7 @@
 - [process manipulation](#process-manipulation)
 - [input simulation](#input-simulation)  
 - [threading system](#threading-system)
+- [windows api](#windows-api)
 - [data types](#data-types)
 - [memory operations](#memory-operations)
 
@@ -224,6 +225,132 @@ local h_codepoint = utf8.codepoint("hello", 1)
 local e_codepoint = utf8.codepoint("hello", 2)
 print("h codepoint: " .. h_codepoint[1])
 print("e codepoint: " .. e_codepoint[1])
+```
+
+## clipboard operations
+
+read and write text data to the system clipboard.
+
+### get_clipboard_text
+
+**signature:** `get_clipboard_text()`
+
+get the current text content from the clipboard.
+
+**parameters:** none
+
+**returns:**
+- string - clipboard text content, or nil if clipboard is empty or inaccessible
+
+```lua
+local text = get_clipboard_text()
+if text then
+    print("clipboard contains: " .. text)
+else
+    print("clipboard is empty or inaccessible")
+end
+```
+
+### set_clipboard_text
+
+**signature:** `set_clipboard_text(text)`
+
+set the clipboard to contain the specified text.
+
+**parameters:**
+- `text` (string) - text to copy to clipboard
+
+**returns:**
+- boolean - true if successful
+
+```lua
+local success = set_clipboard_text("hello from lua!")
+if success then
+    print("text copied to clipboard")
+end
+```
+
+### clear_clipboard
+
+**signature:** `clear_clipboard()`
+
+clear all content from the clipboard.
+
+**parameters:** none
+
+**returns:**
+- boolean - true if successful
+
+```lua
+if clear_clipboard() then
+    print("clipboard cleared")
+end
+```
+
+### clipboard examples
+
+**automatic data logging:**
+
+```lua
+local function log_to_clipboard(data)
+    local existing = get_clipboard_text() or ""
+    local timestamp = os.date("%Y-%m-%d %H:%M:%S")
+    local new_content = existing .. "\n[" .. timestamp .. "] " .. data
+    set_clipboard_text(new_content)
+end
+
+log_to_clipboard("player health: 100")
+log_to_clipboard("position: 123.45, 678.90")
+```
+
+**clipboard monitor:**
+
+```lua
+thread_init(2)
+
+local last_clipboard = get_clipboard_text()
+
+local monitor = register_callback(function()
+    local current = get_clipboard_text()
+    
+    if current and current ~= last_clipboard then
+        print("clipboard changed to: " .. current)
+        last_clipboard = current
+    end
+end, 500)
+
+for i = 1, 120 do
+    thread_poll(0, 500)
+end
+
+unregister_callback(monitor)
+thread_shutdown()
+```
+
+**process data to clipboard:**
+
+```lua
+local proc = open_process("game.exe")
+if proc and proc.is_valid() then
+    local base = proc.get_image_base()
+    local health = proc.read.float(base + 0x1000)
+    local position = proc.read_vec3.float(base + 0x2000)
+    
+    local report = string.format(
+        "Game Stats\n" ..
+        "Health: %.2f\n" ..
+        "Position: %.2f, %.2f, %.2f\n" ..
+        "Base Address: 0x%X",
+        health,
+        position.x, position.y, position.z,
+        base
+    )
+    
+    if set_clipboard_text(report) then
+        print("stats copied to clipboard")
+        play_sound("sounds/success.wav")
+    end
+end
 ```
 
 ## format specifiers reference
@@ -473,10 +600,193 @@ if keyboard.is_valid() then
 end
 ```
 
+### keyboard state checking
+
+check the current state of keyboard keys without simulating input.
+
+**is_key_pressed**
+
+**signature:** `is_key_pressed(vk_code)`
+
+returns true once on the transition from up to down (edge-triggered). useful for detecting single key presses without repeating.
+
+**parameters:**
+- `vk_code` (number) - virtual key code to check
+
+**returns:**
+- boolean - true only on the frame the key transitions from up to down
+
+```lua
+local VK_F1 = 0x70
+
+while true do
+    if is_key_pressed(VK_F1) then
+        print("F1 was pressed (fires once per press)")
+    end
+    
+    thread_sleep(1)
+end
+```
+
+**is_key_down**
+
+**signature:** `is_key_down(vk_code)`
+
+returns true while the key is currently held (level-triggered). useful for continuous actions.
+
+**parameters:**
+- `vk_code` (number) - virtual key code to check
+
+**returns:**
+- boolean - true while the key is held down
+
+```lua
+local VK_SPACE = 0x20
+
+while true do
+    if is_key_down(VK_SPACE) then
+        print("space is being held (fires every frame)")
+    end
+    
+    thread_sleep(1)
+end
+```
+
+**is_key_toggled**
+
+**signature:** `is_key_toggled(vk_code)`
+
+returns true when a key's toggle state is active (e.g., caps lock, num lock, scroll lock).
+
+**parameters:**
+- `vk_code` (number) - virtual key code to check
+
+**returns:**
+- boolean - true if the toggle state is active
+
+```lua
+local VK_CAPITAL = 0x14
+local VK_NUMLOCK = 0x90
+local VK_SCROLL = 0x91
+
+if is_key_toggled(VK_CAPITAL) then
+    print("caps lock is ON")
+end
+
+if is_key_toggled(VK_NUMLOCK) then
+    print("num lock is ON")
+end
+```
+
+### mouse button state checking
+
+check the current state of mouse buttons without simulating input.
+
+**is_mouse_button_pressed**
+
+**signature:** `is_mouse_button_pressed(vk_code)`
+
+returns true once on the transition from up to down (edge-triggered). useful for detecting single mouse clicks without repeating.
+
+**parameters:**
+- `vk_code` (number) - virtual key code for mouse button (VK_LBUTTON=0x01, VK_RBUTTON=0x02, VK_MBUTTON=0x04, VK_XBUTTON1=0x05, VK_XBUTTON2=0x06)
+
+**returns:**
+- boolean - true only on the frame the button transitions from up to down
+
+```lua
+local VK_LBUTTON = 0x01
+local VK_RBUTTON = 0x02
+local VK_MBUTTON = 0x04
+
+while true do
+    if is_mouse_button_pressed(VK_LBUTTON) then
+        print("left mouse button clicked (fires once per click)")
+    end
+    
+    if is_mouse_button_pressed(VK_RBUTTON) then
+        print("right mouse button clicked")
+    end
+    
+    if is_mouse_button_pressed(VK_MBUTTON) then
+        print("middle mouse button clicked")
+    end
+    
+    thread_sleep(1)
+end
+```
+
+**is_mouse_button_down**
+
+**signature:** `is_mouse_button_down(vk_code)`
+
+returns true while the mouse button is currently held (level-triggered). useful for continuous actions like dragging.
+
+**parameters:**
+- `vk_code` (number) - virtual key code for mouse button
+
+**returns:**
+- boolean - true while the button is held down
+
+```lua
+local VK_LBUTTON = 0x01
+
+while true do
+    if is_mouse_button_down(VK_LBUTTON) then
+        print("left button is being held (fires every frame)")
+    end
+    
+    thread_sleep(1)
+end
+```
+
+**input state examples:**
+
+```lua
+local VK_SHIFT = 0x10
+local VK_CTRL = 0x11
+local VK_F1 = 0x70
+local VK_F2 = 0x71
+local VK_LBUTTON = 0x01
+local VK_RBUTTON = 0x02
+
+thread_init(2)
+
+local hotkey_callback = register_callback(function()
+    if is_key_pressed(VK_F1) then
+        if is_key_down(VK_CTRL) then
+            print("ctrl+F1 pressed")
+        else
+            print("F1 pressed")
+        end
+    end
+    
+    if is_key_pressed(VK_F2) and is_key_down(VK_SHIFT) then
+        print("shift+F2 pressed")
+    end
+    
+    if is_mouse_button_pressed(VK_LBUTTON) and is_key_down(VK_CTRL) then
+        print("ctrl+left click detected")
+    end
+    
+    if is_mouse_button_down(VK_LBUTTON) and is_mouse_button_down(VK_RBUTTON) then
+        print("both mouse buttons held")
+    end
+end, 1)
+
+for i = 1, 1000 do
+    thread_poll(0, 10)
+end
+
+unregister_callback(hotkey_callback)
+thread_shutdown()
+```
+```
+
 ### virtual key codes
 
 https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
-common virtual key codes for keyboard simulation:
+common virtual key codes for keyboard simulation and state checking:
 
 - enter: 0x0d
 - space: 0x20
@@ -485,8 +795,15 @@ common virtual key codes for keyboard simulation:
 - shift: 0x10
 - ctrl: 0x11
 - alt: 0x12
+- caps lock: 0x14
+- num lock: 0x90
+- scroll lock: 0x91
 - a-z: 0x41-0x5a
 - 0-9: 0x30-0x39
+- f1-f12: 0x70-0x7b
+- numpad 0-9: 0x60-0x69
+- arrow keys: left 0x25, up 0x26, right 0x27, down 0x28
+- mouse buttons: left 0x01, right 0x02, middle 0x04
 
 ## threading system
 
@@ -743,6 +1060,823 @@ while running do
     handle_network_packets()
     
     thread_sleep(1)
+end
+```
+
+## windows api
+
+access windows system features, window management, and process information.
+
+### window_info type
+
+struct containing comprehensive window and process information.
+
+**fields:**
+- `hwnd` (number) - window handle as 64-bit integer
+- `pid` (number) - process id as 32-bit integer  
+- `process_name` (string) - executable name (e.g., "notepad.exe")
+- `window_title` (string) - current window title text
+- `class_name` (string) - window class name
+
+```lua
+local win = find_window("Calculator")
+if win then
+    print("hwnd: " .. win.hwnd)
+    print("pid: " .. win.pid)
+    print("process: " .. win.process_name)
+    print("title: " .. win.window_title)
+    print("class: " .. win.class_name)
+end
+```
+
+### enumerate_windows
+
+**signature:** `enumerate_windows([visible_only])`
+
+get list of all windows on the system.
+
+**parameters:**
+- `visible_only` (boolean, optional) - if true (default), only return visible windows
+
+**returns:**
+- array of window_info structs
+
+```lua
+local all_windows = enumerate_windows()
+print("total visible windows: " .. #all_windows)
+
+for i, win in ipairs(all_windows) do
+    if win.window_title ~= "" then
+        print(win.process_name .. " - " .. win.window_title)
+    end
+end
+
+local all_including_hidden = enumerate_windows(false)
+print("total windows (including hidden): " .. #all_including_hidden)
+```
+
+### get_window_info
+
+**signature:** `get_window_info(hwnd)`
+
+get detailed information about a specific window handle.
+
+**parameters:**
+- `hwnd` (number) - window handle obtained from other functions
+
+**returns:**
+- window_info struct or nil if window doesn't exist
+
+```lua
+local win = find_window("notepad")
+if win then
+    local info = get_window_info(win.hwnd)
+    if info then
+        print("refreshed info for hwnd " .. info.hwnd)
+        print("current title: " .. info.window_title)
+    end
+end
+```
+
+### find_window
+
+**signature:** `find_window([title], [class_name])`
+
+find a single window by title and/or class name. both parameters are optional but at least one should be provided.
+
+**parameters:**
+- `title` (string, optional) - exact window title to match
+- `class_name` (string, optional) - window class name to match
+
+**returns:**
+- window_info struct or nil if not found
+
+```lua
+local notepad = find_window("Untitled - Notepad")
+if notepad then
+    print("found notepad, pid: " .. notepad.pid)
+end
+
+local by_class = find_window(nil, "CalcFrame")
+if by_class then
+    print("found calculator by class")
+end
+
+local both = find_window("Calculator", "CalcFrame")
+if both then
+    print("found by both title and class")
+end
+```
+
+### find_windows_by_process
+
+**signature:** `find_windows_by_process(process_name)`
+
+find all visible windows belonging to processes with matching names. this solves the multiple-process problem by returning window information you can use to select the correct instance.
+
+**parameters:**
+- `process_name` (string) - partial or full process name (case-insensitive)
+
+**returns:**
+- array of window_info structs for all matching visible windows
+
+**practical use case:**
+
+when multiple instances of a game are running, you can't use `open_process("game.exe")` directly because it would attach to the first one found. instead, use windows to identify the correct instance:
+
+```lua
+local game_windows = find_windows_by_process("game.exe")
+
+if #game_windows == 0 then
+    print("no game instances running")
+elseif #game_windows == 1 then
+    print("found single instance")
+    local proc = open_process(game_windows[1].pid)
+else
+    print("multiple instances found:")
+    for i, win in ipairs(game_windows) do
+        print(i .. ". " .. win.window_title .. " (pid: " .. win.pid .. ")")
+    end
+    
+    print("select which instance (1-" .. #game_windows .. "): ")
+    local choice = tonumber(io.read())
+    
+    if choice and choice >= 1 and choice <= #game_windows then
+        local selected = game_windows[choice]
+        print("connecting to pid " .. selected.pid)
+        local proc = open_process(selected.pid)
+        
+        if proc and proc.is_valid() then
+            print("connected successfully!")
+        end
+    end
+end
+```
+
+**automatic selection example:**
+
+```lua
+local function find_game_window_by_title(search_text)
+    local windows = find_windows_by_process("game.exe")
+    
+    for _, win in ipairs(windows) do
+        if win.window_title:find(search_text) then
+            return win
+        end
+    end
+    
+    return nil
+end
+
+local main_menu_window = find_game_window_by_title("Main Menu")
+if main_menu_window then
+    local proc = open_process(main_menu_window.pid)
+end
+```
+
+**getting process from window handle:**
+
+```lua
+local win = find_window("Calculator")
+if win then
+    local proc = open_process(win.pid)
+    
+    if proc and proc.is_valid() then
+        print("attached to process: " .. win.process_name)
+        print("pid: " .. win.pid)
+    end
+end
+
+local hwnd = 0x12345678
+local info = get_window_info(hwnd)
+if info then
+    local proc = open_process(info.pid)
+end
+```
+
+### get_system_uptime
+
+**signature:** `get_system_uptime()`
+
+get system uptime in milliseconds since boot.
+
+**parameters:** none
+
+**returns:**
+- number (uint64) - milliseconds since system started
+
+```lua
+local uptime_ms = get_system_uptime()
+local uptime_seconds = uptime_ms / 1000
+local uptime_minutes = uptime_seconds / 60
+local uptime_hours = uptime_minutes / 60
+local uptime_days = uptime_hours / 24
+
+print(string.format("system uptime: %d days, %02d:%02d:%02d",
+    math.floor(uptime_days),
+    math.floor(uptime_hours % 24),
+    math.floor(uptime_minutes % 60),
+    math.floor(uptime_seconds % 60)))
+```
+
+### post_window_message
+
+**signature:** `post_window_message(hwnd, msg, wparam, lparam)`
+
+post a windows message to a window. useful for sending input or control messages.
+
+**parameters:**
+- `hwnd` (number) - target window handle
+- `msg` (number) - windows message id (e.g., 0x0010 for WM_CLOSE)
+- `wparam` (number) - message-specific parameter
+- `lparam` (number) - message-specific parameter
+
+**returns:**
+- boolean - true if message was posted successfully
+
+**common message ids:**
+
+```lua
+local WM_CLOSE = 0x0010
+local WM_KEYDOWN = 0x0100
+local WM_KEYUP = 0x0101
+local WM_CHAR = 0x0102
+local WM_LBUTTONDOWN = 0x0201
+local WM_LBUTTONUP = 0x0202
+local WM_RBUTTONDOWN = 0x0204
+local WM_RBUTTONUP = 0x0205
+
+local win = find_window("notepad")
+if win then
+    local success = post_window_message(win.hwnd, WM_CLOSE, 0, 0)
+    if success then
+        print("sent close message to notepad")
+    end
+end
+```
+
+**sending keypresses:**
+
+```lua
+local function send_char_to_window(hwnd, char_code)
+    post_window_message(hwnd, 0x0100, char_code, 0)
+    thread_sleep(10)
+    post_window_message(hwnd, 0x0101, char_code, 0)
+end
+
+local win = find_window("notepad")
+if win then
+    local VK_RETURN = 0x0D
+    send_char_to_window(win.hwnd, VK_RETURN)
+end
+```
+
+### play_sound
+
+**signature:** `play_sound(file_path)`
+
+play a sound file asynchronously. supports wav and mp3 formats.
+
+**parameters:**
+- `file_path` (string) - absolute or relative path to sound file
+
+**returns:**
+- boolean - true if sound started playing successfully
+
+```lua
+local success = play_sound("C:\\Windows\\Media\\notify.wav")
+if success then
+    print("playing sound")
+end
+
+play_sound("sounds/achievement.wav")
+play_sound("sounds/error.mp3")
+```
+
+**sound manager example:**
+
+```lua
+local sounds = {
+    click = "sounds/click.wav",
+    success = "sounds/success.wav",
+    error = "sounds/error.wav",
+    notification = "sounds/notify.wav"
+}
+
+local function play_ui_sound(sound_name)
+    local path = sounds[sound_name]
+    if path then
+        play_sound(path)
+    else
+        print("unknown sound: " .. sound_name)
+    end
+end
+
+play_ui_sound("click")
+play_ui_sound("success")
+```
+
+### window state functions
+
+check the visibility and state of windows.
+
+**is_window_visible**
+
+**signature:** `is_window_visible(hwnd)`
+
+check if a window is currently visible.
+
+**parameters:**
+- `hwnd` (number) - window handle
+
+**returns:**
+- boolean - true if window is visible
+
+```lua
+local win = find_window("Calculator")
+if win and is_window_visible(win.hwnd) then
+    print("calculator is visible")
+end
+```
+
+**is_window_minimized**
+
+**signature:** `is_window_minimized(hwnd)`
+
+check if a window is minimized (iconic).
+
+**parameters:**
+- `hwnd` (number) - window handle
+
+**returns:**
+- boolean - true if window is minimized
+
+```lua
+local win = find_window("notepad")
+if win and is_window_minimized(win.hwnd) then
+    print("notepad is minimized")
+end
+```
+
+**is_window_maximized**
+
+**signature:** `is_window_maximized(hwnd)`
+
+check if a window is maximized.
+
+**parameters:**
+- `hwnd` (number) - window handle
+
+**returns:**
+- boolean - true if window is maximized
+
+```lua
+local win = find_window("chrome")
+if win and is_window_maximized(win.hwnd) then
+    print("chrome is maximized")
+end
+```
+
+### window manipulation functions
+
+control window position, size, and visibility state.
+
+**set_window_foreground**
+
+**signature:** `set_window_foreground(hwnd)`
+
+bring a window to the foreground and activate it.
+
+**parameters:**
+- `hwnd` (number) - window handle
+
+**returns:**
+- boolean - true if successful
+
+```lua
+local win = find_window("Calculator")
+if win then
+    set_window_foreground(win.hwnd)
+end
+```
+
+**show_window**
+
+**signature:** `show_window(hwnd, cmd)`
+
+show, hide, minimize, maximize, or restore a window.
+
+**parameters:**
+- `hwnd` (number) - window handle
+- `cmd` (number) - show window command
+
+**returns:**
+- boolean - true if successful
+
+**common show window commands:**
+- `0` (SW_HIDE) - hide the window
+- `1` (SW_SHOWNORMAL) - show and activate normally
+- `2` (SW_SHOWMINIMIZED) - show minimized
+- `3` (SW_SHOWMAXIMIZED) - show maximized
+- `4` (SW_SHOWNOACTIVATE) - show without activating
+- `5` (SW_SHOW) - show at current state
+- `6` (SW_MINIMIZE) - minimize the window
+- `7` (SW_SHOWMINNOACTIVE) - show minimized without activating
+- `8` (SW_SHOWNA) - show at current state without activating
+- `9` (SW_RESTORE) - restore from minimized/maximized
+
+```lua
+local SW_HIDE = 0
+local SW_SHOW = 1
+local SW_MINIMIZE = 6
+local SW_MAXIMIZE = 3
+local SW_RESTORE = 9
+
+local win = find_window("notepad")
+if win then
+    show_window(win.hwnd, SW_MINIMIZE)
+    thread_sleep(1000)
+    show_window(win.hwnd, SW_RESTORE)
+end
+```
+
+**set_window_position**
+
+**signature:** `set_window_position(hwnd, x, y, width, height)`
+
+move and resize a window.
+
+**parameters:**
+- `hwnd` (number) - window handle
+- `x` (number) - left position in pixels
+- `y` (number) - top position in pixels
+- `width` (number) - window width in pixels
+- `height` (number) - window height in pixels
+
+**returns:**
+- boolean - true if successful
+
+```lua
+local win = find_window("Calculator")
+if win then
+    set_window_position(win.hwnd, 100, 100, 800, 600)
+end
+```
+
+**get_window_rect**
+
+**signature:** `get_window_rect(hwnd)`
+
+get the position and size of a window.
+
+**parameters:**
+- `hwnd` (number) - window handle
+
+**returns:**
+- table with fields: `x`, `y`, `width`, `height`, or nil if window doesn't exist
+
+```lua
+local win = find_window("notepad")
+if win then
+    local rect = get_window_rect(win.hwnd)
+    if rect then
+        print("position: " .. rect.x .. ", " .. rect.y)
+        print("size: " .. rect.width .. " x " .. rect.height)
+    end
+end
+```
+
+**get_foreground_window**
+
+**signature:** `get_foreground_window()`
+
+get information about the currently active foreground window.
+
+**parameters:** none
+
+**returns:**
+- window_info struct for the foreground window, or nil
+
+```lua
+local active = get_foreground_window()
+if active then
+    print("active window: " .. active.window_title)
+    print("process: " .. active.process_name)
+    print("pid: " .. active.pid)
+end
+```
+
+**flash_window**
+
+**signature:** `flash_window(hwnd, [count])`
+
+flash a window's taskbar button to get user attention.
+
+**parameters:**
+- `hwnd` (number) - window handle
+- `count` (number, optional) - number of times to flash (default: 5)
+
+**returns:**
+- boolean - true if successful
+
+```lua
+local win = find_window("Discord")
+if win then
+    flash_window(win.hwnd, 10)
+end
+```
+
+**set_window_transparency**
+
+**signature:** `set_window_transparency(hwnd, alpha)`
+
+set window transparency level.
+
+**parameters:**
+- `hwnd` (number) - window handle
+- `alpha` (number) - transparency level (0-255, where 0 is fully transparent, 255 is opaque)
+
+**returns:**
+- boolean - true if successful
+
+```lua
+local win = find_window("notepad")
+if win then
+    set_window_transparency(win.hwnd, 200)
+    
+    thread_sleep(2000)
+    
+    set_window_transparency(win.hwnd, 255)
+end
+```
+
+**close_window**
+
+**signature:** `close_window(hwnd)`
+
+send a close message to a window (equivalent to clicking the X button).
+
+**parameters:**
+- `hwnd` (number) - window handle
+
+**returns:**
+- boolean - true if message was sent successfully
+
+```lua
+local win = find_window("Untitled - Notepad")
+if win then
+    close_window(win.hwnd)
+end
+```
+
+### window manipulation examples
+
+**monitor active window:**
+
+```lua
+thread_init(2)
+
+local last_active = nil
+
+local monitor = register_callback(function()
+    local active = get_foreground_window()
+    
+    if active and (not last_active or last_active.hwnd ~= active.hwnd) then
+        print("switched to: " .. active.window_title .. " (" .. active.process_name .. ")")
+        last_active = active
+    end
+end, 100)
+
+for i = 1, 100 do
+    thread_poll(0, 100)
+end
+
+unregister_callback(monitor)
+thread_shutdown()
+```
+
+**auto-arrange windows:**
+
+```lua
+local function arrange_windows_grid()
+    local windows = find_windows_by_process("chrome")
+    
+    if #windows == 0 then
+        print("no chrome windows found")
+        return
+    end
+    
+    local screen_width = 1920
+    local screen_height = 1080
+    local cols = math.ceil(math.sqrt(#windows))
+    local rows = math.ceil(#windows / cols)
+    local win_width = math.floor(screen_width / cols)
+    local win_height = math.floor(screen_height / rows)
+    
+    for i, win in ipairs(windows) do
+        local col = (i - 1) % cols
+        local row = math.floor((i - 1) / cols)
+        local x = col * win_width
+        local y = row * win_height
+        
+        show_window(win.hwnd, 1)
+        set_window_position(win.hwnd, x, y, win_width, win_height)
+    end
+    
+    print("arranged " .. #windows .. " windows in " .. rows .. "x" .. cols .. " grid")
+end
+
+arrange_windows_grid()
+```
+
+**window state manager:**
+
+```lua
+local WindowManager = {}
+
+function WindowManager:save_state(hwnd)
+    local rect = get_window_rect(hwnd)
+    if not rect then
+        return nil
+    end
+    
+    return {
+        hwnd = hwnd,
+        x = rect.x,
+        y = rect.y,
+        width = rect.width,
+        height = rect.height,
+        visible = is_window_visible(hwnd),
+        minimized = is_window_minimized(hwnd),
+        maximized = is_window_maximized(hwnd)
+    }
+end
+
+function WindowManager:restore_state(state)
+    if not state then
+        return false
+    end
+    
+    if state.maximized then
+        show_window(state.hwnd, 3)
+    elseif state.minimized then
+        show_window(state.hwnd, 6)
+    else
+        show_window(state.hwnd, 1)
+        set_window_position(state.hwnd, state.x, state.y, state.width, state.height)
+    end
+    
+    if not state.visible then
+        show_window(state.hwnd, 0)
+    end
+    
+    return true
+end
+
+local win = find_window("notepad")
+if win then
+    local saved = WindowManager:save_state(win.hwnd)
+    
+    set_window_position(win.hwnd, 0, 0, 640, 480)
+    thread_sleep(2000)
+    
+    WindowManager:restore_state(saved)
+end
+```
+
+**focus game window automatically:**
+
+```lua
+local function ensure_game_focused(process_name, interval_ms)
+    interval_ms = interval_ms or 1000
+    
+    return register_callback(function()
+        local active = get_foreground_window()
+        
+        if not active or not active.process_name:find(process_name) then
+            local windows = find_windows_by_process(process_name)
+            
+            if #windows > 0 then
+                local game_win = windows[1]
+                
+                if is_window_minimized(game_win.hwnd) then
+                    show_window(game_win.hwnd, 9)
+                end
+                
+                set_window_foreground(game_win.hwnd)
+                print("refocused game window")
+            end
+        end
+    end, interval_ms)
+end
+
+thread_init(2)
+local focus_cb = ensure_game_focused("game.exe", 5000)
+
+for i = 1, 60 do
+    thread_poll(0, 1000)
+end
+
+unregister_callback(focus_cb)
+thread_shutdown()
+```
+
+### complete example: multi-instance game selector
+
+this example shows how to handle multiple game instances and let the user select which one to attach to:
+
+```lua
+local process_name = "game.exe"
+
+local function format_uptime()
+    local ms = get_system_uptime()
+    local seconds = math.floor(ms / 1000)
+    local minutes = math.floor(seconds / 60)
+    local hours = math.floor(minutes / 60)
+    return string.format("%02d:%02d:%02d", hours % 24, minutes % 60, seconds % 60)
+end
+
+local function select_game_instance()
+    print("scanning for game instances...")
+    local windows = find_windows_by_process(process_name)
+    
+    if #windows == 0 then
+        print("no game instances found")
+        return nil
+    end
+    
+    if #windows == 1 then
+        print("found single instance: " .. windows[1].window_title)
+        return windows[1]
+    end
+    
+    print("\nfound " .. #windows .. " game instances:")
+    for i, win in ipairs(windows) do
+        print(string.format("%d. %s (pid: %d, hwnd: 0x%X)", 
+            i, win.window_title, win.pid, win.hwnd))
+    end
+    
+    print("\nselect instance (1-" .. #windows .. "): ")
+    local choice = tonumber(io.read())
+    
+    if choice and choice >= 1 and choice <= #windows then
+        return windows[choice]
+    end
+    
+    print("invalid selection")
+    return nil
+end
+
+local function main()
+    print("system uptime: " .. format_uptime())
+    print("searching for game...")
+    
+    local selected = select_game_instance()
+    if not selected then
+        return
+    end
+    
+    print("\nconnecting to pid " .. selected.pid .. "...")
+    local proc = open_process(selected.pid)
+    
+    if not proc or not proc.is_valid() then
+        print("failed to open process")
+        play_sound("sounds/error.wav")
+        return
+    end
+    
+    print("connected successfully!")
+    play_sound("sounds/success.wav")
+    
+    local callback_id = register_callback(function()
+        local info = get_window_info(selected.hwnd)
+        if not info then
+            print("window closed, stopping...")
+            return false
+        end
+        
+        print("monitoring: " .. info.window_title)
+        
+        return true
+    end, 1000)
+    
+    print("press ctrl+c to stop...")
+    
+    thread_init(2)
+    for i = 1, 60 do
+        thread_poll(0, 1000)
+    end
+    
+    unregister_callback(callback_id)
+    thread_shutdown()
+    
+    print("shutdown complete")
+end
+
+local ok, err = pcall(main)
+if not ok then
+    print("error: " .. tostring(err))
+    play_sound("sounds/error.wav")
 end
 ```
 
