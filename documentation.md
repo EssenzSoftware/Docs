@@ -498,6 +498,13 @@ local success = process.write_raw(0x140001000, data)
 
 use memory buffers for efficient reading and writing operations.
 
+**note on lua syntax:** for typed operations like `buffer.get.float` or `process.read.int32`, both dot notation and bracket notation are equivalent in lua:
+- `buffer.get.float(0)` is the same as `buffer.get["float"](0)`
+- `process.read.int32(addr)` is the same as `process.read["int32"](addr)`
+- `process.write.uint64(addr, val)` is the same as `process.write["uint64"](addr, val)`
+
+dot notation is the recommended lua convention and used throughout this documentation.
+
 ```lua
 local process = open_process("game.exe")
 local buffer = process.read_buffer(0x140001000, 256)
