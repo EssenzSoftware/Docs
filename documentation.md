@@ -44,20 +44,36 @@ thread_shutdown()
 
 ### callback registration functions
 
-register functions to be executed at regular intervals using dedicated timer threads.
+register functions to be executed at regular intervals using dedicated timer threads. callbacks are fully thread-safe and support upvalue captures.
+
+**execution model:**
+
+1. a background scheduler thread monitors registered callbacks and their intervals
+2. when a callback's interval expires, it's posted to the main queue
+3. the callback executes on the main thread when `thread_poll()` is called
+4. this ensures thread-safe access to the lua state and upvalues
 
 ```lua
 local callback_id = register_callback(function()
     print("executed every 100ms")
 end, 100)
 
+local tick_count = 0
+local last_report = os.time()
+
 local monitor_id = register_callback(function()
+    tick_count = tick_count + 1
+    
     local process = open_process("notepad.exe")
     if process.is_valid() then
         local base = process.get_image_base()
-        print("base address: " .. string.format("0x%x", base))
+        
+        if os.time() - last_report >= 1 then
+            print("ticks: " .. tick_count .. ", base: " .. string.format("0x%x", base))
+            last_report = os.time()
+        end
     end
-end, 1000)
+end, 1)
 
 unregister_callback(callback_id)
 
@@ -66,6 +82,10 @@ print("active callbacks: " .. count)
 
 clear_all_callbacks()
 ```
+
+**callback intervals:**
+
+the interval parameter specifies how often the callback should execute in milliseconds. the scheduler posts callbacks to the queue at these intervals, but actual execution depends on how frequently you call `thread_poll()`. see the polling section for details on balancing responsiveness and efficiency.
 
 ### utility functions
 
@@ -100,7 +120,6 @@ print("bitwise not: " .. string.format("0x%08x", inverted))
 print("rotate right 4: " .. string.format("0x%016x", rotated_right))
 print("rotate left 4: " .. string.format("0x%016x", rotated_left))
 
--- rotation examples with 32-bit safe values
 local safe_32bit = 0x12345678
 local rotr_safe = bit.rotr(safe_32bit, 8)
 local rotl_safe = bit.rotl(safe_32bit, 8)
@@ -108,13 +127,9 @@ print("32-bit safe rotation:")
 print("original: " .. string.format("0x%08x", safe_32bit))
 print("rotr 8: " .. string.format("0x%08x", rotr_safe))
 print("rotl 8: " .. string.format("0x%08x", rotl_safe))
-
--- important: lua 5.1/luajit uses double-precision floating point for numbers
--- this means values larger than 2^53 (9,007,199,254,740,992) may lose precision
--- bitwise operations work correctly but very large 64-bit values may not roundtrip perfectly
--- for guaranteed precision, use values within the 32-bit range (0x00000000 to 0xFFFFFFFF)
--- or construct large values using bit operations: bit.bor(bit.lshift(high32, 32), low32)
 ```
+
+**important note on precision:** lua 5.1/luajit uses double-precision floating point for all numbers. values larger than 2^53 (9,007,199,254,740,992) may lose precision. bitwise operations work correctly, but very large 64-bit values may not roundtrip perfectly. for guaranteed precision, use values within the 32-bit range (0x00000000 to 0xFFFFFFFF) or construct large values using bit operations: `bit.bor(bit.lshift(high32, 32), low32)`
 
 ## enhanced math functions
 
@@ -460,6 +475,7 @@ end
 
 ### virtual key codes
 
+https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 common virtual key codes for keyboard simulation:
 
 - enter: 0x0d
@@ -485,40 +501,107 @@ local thread_count = thread_get_count()
 print("active threads: " .. thread_count)
 ```
 
-### task submission
+### async execution with callbacks
 
-submit tasks to the thread pool for background execution.
+the primary way to execute code asynchronously is through the callback system. callbacks are scheduled by a background thread and executed thread-safely on the main thread.
 
 ```lua
-thread_init()
+thread_init(4)
 
-local pool = thread_pool.new()
+local callback_id = register_callback(function()
+    print("async execution every 100ms")
+end, 100)
 
-pool.submit_task(function()
-    thread_sleep(1000)
-    print("background task completed")
-end)
+local counter = 0
+local data_callback = register_callback(function()
+    counter = counter + 1
+    print("counter: " .. counter)
+end, 50)
 
-local queue_size = pool.get_queue_size()
-local thread_count = pool.get_thread_count()
-print("tasks in queue: " .. queue_size)
-print("worker threads: " .. thread_count)
+thread_sleep(5000)
+unregister_callback(callback_id)
+unregister_callback(data_callback)
 ```
+
+**note:** the thread pool is used internally by the callback scheduler. direct task submission via `thread_pool` is reserved for internal use.
 
 ### polling and cleanup
 
-poll for completed tasks and shutdown the thread system.
+`thread_poll(max_callbacks, timeout_ms)` processes callbacks from the main queue. both parameters are optional.
 
+**parameters:**
+- `max_callbacks` - maximum number of callbacks to process (0 = unlimited, default = 0)
+- `timeout_ms` - milliseconds to wait for callbacks before returning (0 = no wait, default = 0)
+
+**how it works:**
+
+the callback system uses a three-component architecture for thread-safe execution. a background scheduler thread continuously monitors all registered callbacks and their timing intervals. when a callback's next execution time arrives, the scheduler posts it to a thread-safe queue on the main thread. your application must call `thread_poll()` regularly to drain this queue and execute the waiting callbacks.
+
+the timeout parameter controls how long `thread_poll()` will wait for callbacks to arrive. it uses a condition variable internally, which allows the main thread to sleep efficiently until the scheduler posts new callbacks or the timeout expires. this prevents the cpu-intensive busy-waiting pattern where the thread continuously checks for work.
+
+**thread safety guarantee:** all callback code executes on the main thread where the lua state lives. this is a fundamental requirement because lua states are not thread-safe for concurrent access. the background scheduler never executes lua code directly - it only handles timing and queueing. this architecture allows callbacks to safely capture and modify upvalues, access the lua state, and call any lua api functions without synchronization concerns.
+
+**batching behavior:**
+
+the system intentionally batches callbacks for improved cpu efficiency and cache locality. when the scheduler thread checks for ready callbacks, it collects all callbacks whose execution time has passed and posts them to the queue together. additionally, any callbacks that become ready during your `thread_poll()` timeout period will be included in the same batch.
+
+this batching mechanism significantly reduces context switching overhead and improves performance. consider a scenario with a 1ms callback interval and a 50ms poll timeout: approximately 50 callback invocations will queue up and execute together when `thread_poll()` is called. while each individual callback may execute slightly later than its exact scheduled time, the overall execution rate remains accurate (1000 executions per second), just delivered in efficient batches rather than individually.
+
+the trade-off is straightforward: shorter poll timeouts provide lower latency for individual callback executions but increase cpu overhead from frequent polling. longer timeouts improve efficiency through batching but increase the maximum delay before a callback executes.
+
+**example patterns:**
+
+non-blocking poll processes all queued callbacks immediately and returns:
+```lua
+thread_poll()
+```
+
+poll with timeout waits up to 16ms for callbacks before returning (ideal for 60 FPS game loops):
+```lua
+thread_poll(0, 16)
+```
+
+limited batch with timeout processes maximum 10 callbacks and waits up to 50ms (useful when interleaving callback processing with other work):
+```lua
+thread_poll(10, 50)
+```
+
+high-frequency pattern provides minimal latency for time-critical operations (callbacks execute within 1-2ms, higher cpu usage):
 ```lua
 while true do
-    local processed = thread_poll(10)
-    if processed == 0 then
-        thread_sleep(16)
-    end
+    thread_poll(0, 1)
+end
+```
+
+balanced pattern for efficient 60 FPS execution (callbacks batch into groups for efficiency while maintaining good responsiveness):
+```lua
+while true do
+    thread_poll(0, 16)
+end
+```
+
+efficiency pattern maximizes battery life and minimizes cpu usage (suitable for background monitoring, callbacks may execute up to 100ms after scheduled time):
+```lua
+while true do
+    thread_poll(0, 100)
 end
 
 thread_shutdown()
 ```
+
+**choosing the right timeout:**
+
+the timeout parameter fundamentally controls the latency-efficiency trade-off in your application:
+
+**1-5ms timeouts:** use for real-time game features requiring immediate response such as aimbots, esp rendering, or input handling. callbacks execute within milliseconds of their scheduled time. expect increased cpu usage from frequent polling, but latency will be minimal. suitable when frame-perfect timing matters more than power efficiency.
+
+**16ms timeout:** optimal for typical game loop patterns operating at 60 frames per second. provides excellent balance between responsiveness and efficiency. callbacks batch naturally into frame-sized groups, reducing overhead while maintaining smooth operation. recommended as the default choice for most game hacking scenarios.
+
+**50-100ms timeouts:** ideal for background monitoring, periodic checks, and non-time-critical automation. dramatically reduces cpu usage and power consumption. callbacks execute in large batches with higher latency but maintain correct average execution rates. perfect for process scanning, stat tracking, or idle monitoring.
+
+**0ms (no wait):** special case for event-driven architectures where you need non-blocking callback processing. poll returns immediately whether callbacks are available or not. use when integrating with other event loops or when you want explicit control over blocking behavior.
+
+understanding latency vs accuracy: the timeout controls maximum latency before callback execution, not the callback scheduling accuracy. a 1ms interval callback with a 50ms timeout still executes 1000 times per second on average - the scheduler remains accurate. the difference is execution happens in batches of approximately 50 callbacks at once, rather than individually. this batching improves performance significantly while maintaining the correct overall execution rate.
 
 ### interval callbacks
 
@@ -546,8 +629,120 @@ local position_tracker = register_callback(function()
 end, 1000)
 
 while get_active_callback_count() > 0 do
-    thread_poll()
-    thread_sleep(16)
+    thread_poll(0, 16)
+end
+```
+
+### practical examples
+
+**example 1: high-frequency monitoring (maximum responsiveness)**
+
+use case: real-time aimbot, esp updates, input handling
+
+this pattern prioritizes latency over efficiency. the 1ms poll timeout ensures callbacks execute within 1-2ms of becoming ready. cpu usage will be higher due to frequent wake-ups, but for competitive gaming features where split-second timing matters, this overhead is acceptable.
+
+```lua
+thread_init(4)
+
+local esp_callback = register_callback(function()
+    local proc = open_process("game.exe")
+    if proc.is_valid() then
+        local player_pos = proc.read_vec3.float(0x12345678)
+        local enemy_pos = proc.read_vec3.float(0x23456789)
+        update_overlay(player_pos, enemy_pos)
+    end
+end, 1)
+
+while true do
+    thread_poll(0, 1)
+end
+```
+
+**example 2: balanced game loop (recommended)**
+
+use case: general game hacking, automation, typical use cases
+
+this is the recommended pattern for most applications. the 16ms poll timeout matches standard 60 FPS timing, providing smooth operation while efficiently batching callbacks. multiple callbacks with different intervals coexist well, each executing at their scheduled rate but batched into frame-sized groups.
+
+```lua
+thread_init(4)
+
+local health_cb = register_callback(function()
+    local proc = open_process("game.exe")
+    if proc.is_valid() then
+        local health = proc.read.float(0x1000)
+        if health < 30 then
+            trigger_health_warning()
+        end
+    end
+end, 10)
+
+local position_cb = register_callback(function()
+    local proc = open_process("game.exe")
+    if proc.is_valid() then
+        local pos = proc.read_vec3.float(0x2000)
+        log_position(pos)
+    end
+end, 50)
+
+local stats_cb = register_callback(function()
+    update_ui_stats()
+end, 1000)
+
+while true do
+    thread_poll(0, 16)
+end
+```
+
+**example 3: low-frequency monitoring (maximum efficiency)**
+
+use case: process scanning, periodic checks, background monitoring
+
+this pattern maximizes cpu efficiency and minimizes power consumption. suitable for background tasks where latency is not critical. the 100ms poll timeout means the thread sleeps efficiently between checks, waking only 10 times per second regardless of how many callbacks are registered.
+
+```lua
+thread_init(4)
+
+local scanner = register_callback(function()
+    local proc = open_process("game.exe")
+    if proc.is_valid() then
+        local base = proc.get_image_base()
+        print("process found at base: " .. string.format("0x%x", base))
+        scan_for_patterns(proc, base)
+    else
+        print("waiting for game process...")
+    end
+end, 5000)
+
+while true do
+    thread_poll(0, 100)
+end
+```
+
+**example 4: event-driven with callbacks**
+
+use case: non-blocking loops with other events
+
+this pattern integrates callback processing with other event-driven code. the zero timeout ensures `thread_poll()` never blocks, allowing your main loop to handle other events promptly. useful when building guis, handling input, or integrating with other event loops.
+
+```lua
+thread_init(4)
+
+local monitor = register_callback(function()
+    local proc = open_process("game.exe")
+    if proc.is_valid() then
+        check_game_state(proc)
+    end
+end, 100)
+
+while running do
+    thread_poll(0, 0)
+    
+    process_keyboard_input()
+    update_overlay_window()
+    handle_network_packets()
+    
+    thread_sleep(1)
 end
 ```
 
@@ -749,4 +944,148 @@ if buffer.is_valid() then
         name = buffer.get_string(32, 64)
     }
 end
+```
+
+## best practices
+
+### callback design patterns
+
+capture and modify upvalues safely:
+```lua
+local counter = 0
+local last_check = os.time()
+
+register_callback(function()
+    counter = counter + 1
+    
+    if os.time() - last_check >= 1 then
+        print("ticks per second: " .. counter)
+        counter = 0
+        last_check = os.time()
+    end
+end, 1)
+```
+
+understand callback execution timing:
+
+callbacks do not execute automatically in the background. registering a callback schedules it for execution, but the actual execution only occurs when your code explicitly calls `thread_poll()`. the scheduler thread handles timing and queueing, but callback code runs synchronously during `thread_poll()` calls.
+
+incorrect example (callback never executes because thread_poll is not called):
+```lua
+thread_init()
+register_callback(function()
+    print("this runs every 10ms")
+end, 10)
+
+while true do
+end
+```
+
+correct example (callback executes during thread_poll):
+```lua
+thread_init()
+register_callback(function()
+    print("this runs every 10ms")
+end, 10)
+
+while true do
+    thread_poll(0, 16)
+end
+```
+
+match poll timeout to your needs:
+
+different polling strategies suit different use cases. understanding the trade-offs helps optimize your application's performance characteristics.
+
+high-frequency monitoring (1ms callback with 1ms poll timeout) executes almost immediately after becoming ready with 1-2ms latency. cpu usage is higher due to constant wake-ups, but latency is minimal. use for aimbots, esp systems, real-time input handling, and frame-perfect timing:
+```lua
+thread_init()
+local monitor = register_callback(function() end, 1)
+while true do
+    thread_poll(0, 1)
+end
+```
+
+balanced approach (1ms callback with 16ms poll timeout) accumulates callbacks for up to 16ms, then executes as a batch of approximately 16 invocations. significantly more efficient than 1ms polling while maintaining good responsiveness. the callback still executes 1000 times per second, just in groups of 16. use for general game hacking, automation, and typical monitoring scenarios:
+```lua
+thread_init()
+local monitor = register_callback(function() end, 1)
+while true do
+    thread_poll(0, 16)
+end
+```
+
+low-frequency monitoring (100ms callback with 100ms poll timeout) executes once per poll since intervals match. minimal cpu overhead with maximum power efficiency. suitable for non-time-critical tasks where 100ms latency is acceptable. use for process scanning, periodic stat updates, and background monitoring:
+```lua
+thread_init()
+local monitor = register_callback(function() end, 100)
+while true do
+    thread_poll(0, 100)
+end
+```
+
+check validity before operations:
+```lua
+register_callback(function()
+    local proc = open_process("game.exe")
+    if proc.is_valid() then
+        local value = proc.read.uint64(0x140001000)
+    end
+end, 100)
+```
+
+avoid calling get_active_callback_count from within callbacks as it can cause deadlocks.
+
+### performance optimization
+
+use appropriate intervals:
+- high-frequency monitoring: 1-10ms
+- normal updates: 50-100ms  
+- periodic checks: 500-1000ms
+
+batch memory reads with buffers:
+```lua
+local buf = proc.read_buffer(base, 12)
+if buf.is_valid() then
+    local health = buf.get.float(0)
+    local armor = buf.get.float(4)
+    local ammo = buf.get.int32(8)
+end
+```
+
+### error handling
+
+use pcall for error recovery:
+```lua
+local callback_id = register_callback(function()
+    local ok, err = pcall(function()
+        local proc = open_process("game.exe")
+        local value = proc.read.uint64(0x140001000)
+        process_value(value)
+    end)
+    
+    if not ok then
+        print("callback error: " .. tostring(err))
+    end
+end, 100)
+```
+
+### cleanup and shutdown
+
+always cleanup resources:
+```lua
+thread_init(4)
+local callbacks = {}
+
+table.insert(callbacks, register_callback(function() end, 100))
+table.insert(callbacks, register_callback(function() end, 200))
+
+for i = 1, 1000 do
+    thread_poll(0, 10)
+end
+
+for _, id in ipairs(callbacks) do
+    unregister_callback(id)
+end
+thread_shutdown()
 ```

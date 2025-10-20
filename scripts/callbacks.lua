@@ -31,8 +31,7 @@ print("active callbacks: " .. get_active_callback_count())
 print("running for 10 seconds...")
 local start_time = os.time()
 while os.time() - start_time < 10 do
-    thread_poll()
-    thread_sleep(50)
+    thread_poll(0, 50)
 end
 
 print("unregistering counter callback...")
@@ -42,8 +41,7 @@ print("active callbacks: " .. get_active_callback_count())
 print("running for 5 more seconds...")
 start_time = os.time()
 while os.time() - start_time < 5 do
-    thread_poll()
-    thread_sleep(50)
+    thread_poll(0, 50)
 end
 
 print("clearing all callbacks...")
