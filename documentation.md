@@ -902,6 +902,97 @@ matrix = cam.get_view_projection_matrix()
 
 get combined view-projection matrix for the camera.
 
+### engine utilities
+
+engine-specific mathematical utility functions for each game engine.
+
+#### available engines
+
+all functions are available for each engine:
+- `source_engine` - source engine (valve games)
+- `opengl_engine` - opengl-based engines
+- `unreal_engine` - unreal engine
+- `unity_engine` - unity engine
+- `iw_engine` - infinity ward engine (call of duty)
+
+#### forward_vector, right_vector, up_vector
+
+```lua
+forward = source_engine.forward_vector(angles)
+right = source_engine.right_vector(angles)
+up = source_engine.up_vector(angles)
+```
+
+get direction vectors from view angles.
+
+**parameters:**
+- `angles` - view angles for the specific engine
+
+**returns:**
+- `vec3` - direction vector
+
+#### rotation_matrix
+
+```lua
+rot_matrix = source_engine.rotation_matrix(angles)
+```
+
+get rotation matrix from view angles.
+
+**parameters:**
+- `angles` - view angles for the specific engine
+
+**returns:**
+- `mat4x4` - rotation matrix
+
+#### calc_view_matrix
+
+```lua
+view_matrix = source_engine.calc_view_matrix(angles, origin)
+```
+
+calculate view matrix from camera angles and position.
+
+**parameters:**
+- `angles` - camera view angles
+- `origin` (vec3) - camera position
+
+**returns:**
+- `mat4x4` - view matrix
+
+#### calc_perspective_projection_matrix
+
+```lua
+proj_matrix = source_engine.calc_perspective_projection_matrix(fov, aspect, near, far)
+```
+
+calculate perspective projection matrix.
+
+**parameters:**
+- `fov` (float) - field of view in degrees
+- `aspect` (float) - aspect ratio (width/height)
+- `near` (float) - near plane distance
+- `far` (float) - far plane distance
+
+**returns:**
+- `mat4x4` - projection matrix
+
+**example:**
+```lua
+-- source engine example
+local angles = source_view_angles(0, 90, 0)
+local origin = vec3(0, 0, 100)
+
+-- get direction vectors
+local forward = source_engine.forward_vector(angles)
+local right = source_engine.right_vector(angles)
+local up = source_engine.up_vector(angles)
+
+-- calculate matrices
+local view_mat = source_engine.calc_view_matrix(angles, origin)
+local proj_mat = source_engine.calc_perspective_projection_matrix(90, 16/9, 1, 1000)
+```
+
 ### triangle
 
 3D triangle type for geometric calculations.
