@@ -1118,6 +1118,101 @@ local dir = vec3(0, 0, 1)
 local plane = create_plane(v1, v2, dir, 10.0)
 ```
 
+### projectile prediction
+
+ballistics and projectile trajectory prediction for moving targets.
+
+#### projectile
+
+```lua
+proj = projectile()
+proj.origin = vec3(0, 0, 0)
+proj.launch_speed = 1000.0
+proj.gravity_scale = 1.0
+```
+
+projectile configuration for trajectory calculations.
+
+**properties:**
+- `origin` (vec3) - launch position
+- `launch_speed` (float) - initial velocity
+- `gravity_scale` (float) - gravity multiplier
+
+#### target
+
+```lua
+tgt = target()
+tgt.origin = vec3(100, 50, 0)
+tgt.velocity = vec3(10, 0, 0)
+tgt.is_airborne = false
+```
+
+target configuration for prediction.
+
+**properties:**
+- `origin` (vec3) - current position
+- `velocity` (vec3) - current velocity vector
+- `is_airborne` (bool) - whether target is in air
+
+#### projectile predictors
+
+engine-specific projectile prediction systems.
+
+```lua
+predictor = source_projectile_predictor(gravity, time_step, max_time, tolerance)
+predictor = opengl_projectile_predictor(gravity, time_step, max_time, tolerance)
+predictor = unreal_projectile_predictor(gravity, time_step, max_time, tolerance)
+predictor = unity_projectile_predictor(gravity, time_step, max_time, tolerance)
+```
+
+**parameters:**
+- `gravity` (float) - gravity constant for simulation
+- `time_step` (float) - simulation step size (smaller = more accurate)
+- `max_time` (float) - maximum prediction time
+- `tolerance` (float) - distance tolerance for hit detection
+
+##### calculate_aim_point
+
+```lua
+result = predictor.calculate_aim_point(proj, tgt)
+
+if result then
+    aim_point = result
+    print(aim_point.x, aim_point.y, aim_point.z)
+else
+    print("no solution found")
+end
+```
+
+calculate where to aim to hit a moving target.
+
+**parameters:**
+- `proj` (projectile) - projectile configuration
+- `tgt` (target) - target configuration
+
+**returns:**
+- `vec3` if solution found, `nil` otherwise
+
+**example:**
+```lua
+local proj = projectile()
+proj.origin = vec3(0, 0, 10)
+proj.launch_speed = 800
+proj.gravity_scale = 1.0
+
+local tgt = target()
+tgt.origin = vec3(200, 100, 10)
+tgt.velocity = vec3(15, 5, 0)
+tgt.is_airborne = false
+
+local predictor = source_projectile_predictor(800, 0.01, 5.0, 1.0)
+local aim = predictor.calculate_aim_point(proj, tgt)
+
+if aim then
+    print("aim at:", aim.x, aim.y, aim.z)
+end
+```
+
 ---
 
 ## utilities
