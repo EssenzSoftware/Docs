@@ -537,6 +537,27 @@ if success then
 end
 ```
 
+### writing vectors
+
+write vec2, vec3, and vec4 types with automatic type conversion.
+
+```lua
+local process = open_process("game.exe")
+local address = 0x140001000
+
+local position = vec3(100.0, 200.0, 300.0)
+process.write_vec3.float(address, position)
+
+local velocity = vec3(1.5, 2.5, 3.5)
+process.write_vec3.int32(address + 0x20, velocity)
+
+local screen_pos = vec2(960, 540)
+process.write_vec2.int16(address + 0x40, screen_pos)
+
+local color = vec4(255, 128, 64, 255)
+process.write_vec4.uint8(address + 0x50, color)
+```
+
 ### writing raw data
 
 write raw byte arrays to memory.
