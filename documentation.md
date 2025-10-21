@@ -2347,6 +2347,158 @@ local errors = {
 }
 ```
 
+### camera
+
+engine-specific camera implementations with world-to-screen projection.
+
+#### supported engines
+
+```lua
+local source_cam = source_camera(position, angles, viewport, fov, near_plane, far_plane)
+local opengl_cam = opengl_camera(position, angles, viewport, fov, near_plane, far_plane)
+local unreal_cam = unreal_camera(position, angles, viewport, fov, near_plane, far_plane)
+local unity_cam = unity_camera(position, angles, viewport, fov, near_plane, far_plane)
+local iw_cam = iw_camera(position, angles, viewport, fov, near_plane, far_plane)
+```
+
+#### view angles
+
+each engine has its own view angles type with pitch, yaw, and roll.
+
+```lua
+local source_angles = source_view_angles(0.0, 90.0, 0.0)
+print("pitch: " .. source_angles.pitch)
+print("yaw: " .. source_angles.yaw)
+print("roll: " .. source_angles.roll)
+
+local opengl_angles = opengl_view_angles()
+opengl_angles.pitch = 45.0
+opengl_angles.yaw = 180.0
+opengl_angles.roll = 0.0
+```
+
+#### creating a camera
+
+```lua
+local position = vec3(100.0, 200.0, 300.0)
+local angles = source_view_angles(0.0, 90.0, 0.0)
+local vp = viewport()
+vp.width = 1920
+vp.height = 1080
+local camera_fov = fov(90.0)
+local near = 0.1
+local far = 10000.0
+
+local cam = source_camera(position, angles, vp, camera_fov, near, far)
+```
+
+#### world to screen
+
+convert 3D world coordinates to 2D screen coordinates.
+
+```lua
+local cam = source_camera(position, angles, vp, camera_fov, near, far)
+
+local world_pos = vec3(500.0, 600.0, 700.0)
+local result = cam.world_to_screen(world_pos)
+
+if result.has_value() then
+    local screen_pos = result.value()
+    print("screen x: " .. screen_pos.x)
+    print("screen y: " .. screen_pos.y)
+else
+    print("position is off-screen or behind camera")
+end
+```
+
+#### screen to world
+
+convert 2D screen coordinates back to 3D world space.
+
+```lua
+local screen_pos = vec2(960.0, 540.0)
+local result = cam.screen_to_world(screen_pos)
+
+if result.has_value() then
+    local world_pos = result.value()
+    print("world position: " .. world_pos.x .. ", " .. world_pos.y .. ", " .. world_pos.z)
+end
+```
+
+#### camera properties
+
+```lua
+cam.set_field_of_view(fov(110.0))
+cam.set_near_plane(0.5)
+cam.set_far_plane(5000.0)
+cam.set_origin(vec3(0.0, 0.0, 100.0))
+
+local new_angles = source_view_angles(10.0, 45.0, 0.0)
+cam.set_view_angles(new_angles)
+
+local vp = viewport()
+vp.width = 2560
+vp.height = 1440
+cam.set_view_port(vp)
+
+local current_fov = cam.get_field_of_view()
+local current_near = cam.get_near_plane()
+local current_far = cam.get_far_plane()
+local current_origin = cam.get_origin()
+local current_angles = cam.get_view_angles()
+```
+
+#### look at target
+
+point the camera at a specific world position.
+
+```lua
+local cam = source_camera(position, angles, vp, camera_fov, near, far)
+
+local target_position = vec3(1000.0, 2000.0, 500.0)
+cam.look_at(target_position)
+```
+
+#### view projection matrix
+
+```lua
+local view_proj = cam.get_view_projection_matrix()
+
+for row = 0, 3 do
+    for col = 0, 3 do
+        local val = view_proj.get(row, col)
+        print(string.format("[%d,%d] = %.2f", row, col, val))
+    end
+end
+```
+
+#### practical esp example
+
+```lua
+local process = open_process("game.exe")
+
+local cam_pos = process.read_vec3.float(camera_address)
+local cam_angles = source_view_angles(
+    process.read.float(camera_address + 0x10),
+    process.read.float(camera_address + 0x14),
+    0.0
+)
+
+local vp = viewport()
+vp.width = 1920
+vp.height = 1080
+
+local cam = source_camera(cam_pos, cam_angles, vp, fov(90.0), 0.1, 10000.0)
+
+local entity_pos = process.read_vec3.float(entity_address)
+local result = cam.world_to_screen(entity_pos)
+
+if result.has_value() then
+    local screen = result.value()
+    print("draw box at: " .. screen.x .. ", " .. screen.y)
+end
+```
+
 ## best practices
 
 ### callback design patterns
