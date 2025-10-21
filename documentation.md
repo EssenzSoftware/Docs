@@ -419,6 +419,161 @@ shutdown the thread pool.
 thread_shutdown()
 ```
 
+---
+
+## collision
+
+ray-triangle intersection testing for collision detection and line-of-sight checks.
+
+### types
+
+#### ray
+
+represents a ray with start and end points. used for line tracing.
+
+**properties:**
+- `start: vec3` - starting point of the ray
+- `end: vec3` - ending point of the ray  
+- `infinite_length: bool` - whether the ray extends infinitely
+
+**methods:**
+```lua
+-- get direction vector from start to end
+direction = ray:direction_vector() -- returns vec3
+
+-- get normalized direction vector
+direction_norm = ray:direction_vector_normalized() -- returns vec3
+```
+
+**example:**
+```lua
+local ray = {
+    start = vec3(0, 0, 0),
+    ["end"] = vec3(100, 0, 0),
+    infinite_length = false
+}
+
+local dir = ray:direction_vector()
+local dir_norm = ray:direction_vector_normalized()
+```
+
+### functions
+
+#### line_tracer.can_trace_line
+
+tests if a ray intersects a triangle.
+
+```lua
+success = line_tracer.can_trace_line(ray, triangle)
+```
+
+**parameters:**
+- `ray` - ray to test
+- `triangle` - triangle to test against
+
+**returns:** `bool` - true if ray intersects triangle
+
+**example:**
+```lua
+local ray = {
+    start = vec3(0, 0, 10),
+    ["end"] = vec3(0, 0, -10),
+    infinite_length = false
+}
+
+local tri = triangle.create(
+    vec3(-5, -5, 0),
+    vec3(5, -5, 0),
+    vec3(0, 5, 0)
+)
+
+if line_tracer.can_trace_line(ray, tri) then
+    print("ray hits triangle")
+end
+```
+
+#### line_tracer.get_ray_hit_point
+
+calculates the exact intersection point between ray and triangle.
+
+```lua
+hit_point = line_tracer.get_ray_hit_point(ray, triangle)
+```
+
+**parameters:**
+- `ray` - ray to test
+- `triangle` - triangle to test against
+
+**returns:** `vec3 | nil` - hit point coordinates, or nil if no intersection
+
+**example:**
+```lua
+local ray = {
+    start = vec3(0, 0, 10),
+    ["end"] = vec3(0, 0, -10),
+    infinite_length = false
+}
+
+local tri = triangle.create(
+    vec3(-5, -5, 0),
+    vec3(5, -5, 0),
+    vec3(0, 5, 0)
+)
+
+local hit = line_tracer.get_ray_hit_point(ray, tri)
+if hit then
+    print("hit at: " .. hit.x .. ", " .. hit.y .. ", " .. hit.z)
+end
+```
+
+### typical usage
+
+**visibility check:**
+```lua
+local player_pos = vec3(100, 200, 50)
+local target_pos = vec3(150, 250, 75)
+
+local ray = {
+    start = player_pos,
+    ["end"] = target_pos,
+    infinite_length = false
+}
+
+local has_los = true
+for _, obstacle in ipairs(world_geometry) do
+    if line_tracer.can_trace_line(ray, obstacle) then
+        has_los = false
+        break
+    end
+end
+
+if has_los then
+    print("target visible")
+end
+```
+
+**surface intersection:**
+```lua
+local camera_pos = vec3(0, 0, 100)
+local look_dir = vec3(0, 0, -1)
+
+local ray = {
+    start = camera_pos,
+    ["end"] = camera_pos + (look_dir * 1000),
+    infinite_length = true
+}
+
+for _, surface in ipairs(level_geometry) do
+    local hit = line_tracer.get_ray_hit_point(ray, surface)
+    if hit then
+        print("looking at point: " .. hit.x .. ", " .. hit.y .. ", " .. hit.z)
+        break
+    end
+end
+```
+
+**implementation note:** uses Möller–Trumbore ray-triangle intersection algorithm.
+
 ### register_callback
 
 register a function to execute at intervals.
