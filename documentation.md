@@ -236,6 +236,37 @@ get information about a loaded module.
 
 **returns:** table with `base` and `size` fields.
 
+#### get_module_export
+```lua
+address = process.get_module_export(module_base, "ExportName")
+```
+
+get the address of an exported function from a module's export table.
+
+**parameters:**
+- `module_base` - base address of the module (from `get_module().base()` or `get_image_base()`)
+- `export_name` - name of the exported function (case-insensitive)
+
+**returns:** `uint64` - address of the exported function, or `0` if not found
+
+**example:**
+```lua
+local game = open_process("game.exe")
+local base = game.get_image_base()
+
+local create_entity = game.get_module_export(base, "CreateEntity")
+if create_entity ~= 0 then
+    print("CreateEntity at: " .. string.format("0x%X", create_entity))
+end
+
+local user32 = game.get_module("user32.dll")
+if user32 then
+    local msg_box = game.get_module_export(user32.base(), "MessageBoxA")
+end
+```
+
+**note:** parses PE export directory to resolve function addresses. useful for finding game API functions or hooking exported functions.
+
 #### read
 ```lua
 value = process.read.TYPE(address)
@@ -273,6 +304,48 @@ success = process.write_vec4.TYPE(address, vec)
 ```
 
 write vector types to memory.
+
+#### read_bit
+```lua
+value = process.read_bit(address, bit_index)
+```
+
+read a single bit from a byte at the specified address.
+
+**parameters:**
+- `address` - memory address to read from
+- `bit_index` - bit position (0-7, where 0 is LSB)
+
+**returns:** `bool` - the bit value, or `false` if bit_index is invalid
+
+**example:**
+```lua
+local flags = 0x140001000
+local is_alive = process.read_bit(flags, 0)
+local is_jumping = process.read_bit(flags, 1)
+local is_crouching = process.read_bit(flags, 2)
+```
+
+#### write_bit
+```lua
+success = process.write_bit(address, bit_index, value)
+```
+
+write a single bit to a byte at the specified address. reads the byte, modifies the bit, then writes back.
+
+**parameters:**
+- `address` - memory address to write to
+- `bit_index` - bit position (0-7, where 0 is LSB)
+- `value` - boolean value to set
+
+**returns:** `bool` - true if successful, false if bit_index is invalid or read/write failed
+
+**example:**
+```lua
+local flags = 0x140001000
+process.write_bit(flags, 0, true)   -- set bit 0 (alive flag)
+process.write_bit(flags, 1, false)  -- clear bit 1 (jumping flag)
+```
 
 #### read_buffer
 ```lua
