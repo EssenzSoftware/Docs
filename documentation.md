@@ -586,9 +586,11 @@ success = close_window(hwnd)
 exclude/include window from being captured by software (no exceptions apart from hardware i.e capture cards)
 
 ```lua
-exclude_window(hwnd)
-include_window(hwnd)
+success = exclude_window(hwnd)
+success = include_window(hwnd)
 ```
+
+returns `true` if successful, `false` otherwise.
 
 ---
 
@@ -716,12 +718,7 @@ value = matrix.get(row, col)
 matrix.set(row, col, value)
 ```
 
-##### identity
-```lua
-matrix.identity()
-```
-
-set to identity matrix.
+access or modify individual matrix elements.
 
 ##### clear
 ```lua
@@ -730,30 +727,43 @@ matrix.clear()
 
 set all elements to zero.
 
-##### transpose
+##### transposed
 ```lua
-transposed = matrix.transpose()
+transposed = matrix.transposed()
 ```
 
-##### inverse
+returns a new matrix that is the transpose of the original (rows and columns swapped).
+
+##### inverted
 ```lua
-inverted = matrix.inverse()
+result = matrix.inverted()
+
+if result then
+    inverted_matrix = result
+else
+    -- matrix is not invertible (determinant is zero)
+end
 ```
 
-returns inverted matrix or identity if determinant is zero.
+returns the inverted matrix if it exists, or `nil` if the matrix is singular (non-invertible).
 
 ##### determinant
 ```lua
 det = matrix.determinant()
 ```
 
+calculate the determinant of the matrix.
+
 ##### operations
 ```lua
-m3 = m1 + m2
-m3 = m1 - m2
+-- matrix multiplication
 m3 = m1 * m2
-m3 = m1 * scalar
+
+-- scalar multiplication
+m2 = m1 * 2.5
 ```
+
+**note:** addition (+) and subtraction (-) operators are not supported.
 
 ### trigonometry
 
@@ -788,13 +798,21 @@ aspect = vp.aspect_ratio
 
 #### fov
 ```lua
-camera_fov = fov(90.0)
-camera_fov.set_degrees(110.0)
-camera_fov.set_radians(1.5708)
+camera_fov = fov()
+camera_fov = fov.from_degrees(90.0)
+camera_fov = fov.from_radians(1.5708)
 
-deg = camera_fov.degrees
-rad = camera_fov.radians
+-- get current value
+deg = camera_fov.as_degrees()
+rad = camera_fov.as_radians()
+
+-- trigonometric functions
+s = camera_fov.sin()
+c = camera_fov.cos()
+t = camera_fov.tan()
 ```
+
+field of view angle (clamped between 0° and 180°).
 
 ### camera
 
@@ -813,10 +831,18 @@ cam = iw_camera(position, angles, viewport, fov, near, far)
 #### view angles
 
 ```lua
-angles = source_view_angles(pitch, yaw, roll)
-angles.pitch = 10.0
-angles.yaw = 45.0
-angles.roll = 0.0
+-- create view angles
+angles = source_view_angles()
+angles = source_view_angles(pitch_deg, yaw_deg, roll_deg)
+
+-- access angle components (returns Angle objects)
+pitch = angles.pitch
+yaw = angles.yaw
+roll = angles.roll
+
+-- get values in degrees or radians
+pitch_deg = angles.pitch.as_degrees()
+pitch_rad = angles.pitch.as_radians()
 ```
 
 each engine has its own view angles type: `source_view_angles`, `opengl_view_angles`, `unreal_view_angles`, `unity_view_angles`, `iw_view_angles`
