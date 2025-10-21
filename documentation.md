@@ -583,11 +583,11 @@ success = close_window(hwnd)
 
 ### exclude_window, include_window
 
-control driver input filtering for specific windows.
+exclude/include window from being captured by software (no exceptions apart from hardware i.e capture cards)
 
 ```lua
-exclude_window(hwnd)  -- prevent window from receiving driver input
-include_window(hwnd)  -- re-enable driver input
+exclude_window(hwnd)
+include_window(hwnd)
 ```
 
 ---
