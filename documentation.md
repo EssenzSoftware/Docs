@@ -876,6 +876,72 @@ matrix = cam.get_view_projection_matrix()
 
 get combined view-projection matrix for the camera.
 
+### triangle
+
+3D triangle type for geometric calculations.
+
+```lua
+tri = triangle(v1, v2, v3)
+tri = triangle()
+```
+
+**parameters:**
+- `v1`, `v2`, `v3` (vec3) - triangle vertices
+
+#### triangle properties
+
+```lua
+tri.v1 = vec3(0, 0, 0)
+tri.v2 = vec3(1, 0, 0)
+tri.v3 = vec3(0, 1, 0)
+```
+
+#### triangle methods
+
+##### calculate_normal
+```lua
+normal = tri.calculate_normal()
+```
+
+calculate surface normal vector.
+
+##### side_a_length, side_b_length
+```lua
+len_a = tri.side_a_length()
+len_b = tri.side_b_length()
+```
+
+get length of triangle sides.
+
+##### side_a_vector, side_b_vector
+```lua
+vec_a = tri.side_a_vector()
+vec_b = tri.side_b_vector()
+```
+
+get direction vectors for triangle sides.
+
+##### hypot
+```lua
+hypot_len = tri.hypot()
+```
+
+get hypotenuse length (distance from v1 to v3).
+
+##### is_rectangular
+```lua
+is_right = tri.is_rectangular()
+```
+
+check if triangle is a right triangle.
+
+##### mid_point
+```lua
+center = tri.mid_point()
+```
+
+get center point of triangle.
+
 ---
 
 ## utilities
