@@ -2150,15 +2150,19 @@ matrix types for linear algebra operations commonly used in game development.
 #### creating matrices
 
 ```lua
-local m2 = mat2x2()
-local m3 = mat3x3()
-local m4 = mat4x4()
+local m2 = mat2x2.row_major()
+local m3 = mat3x3.row_major()
+local m4 = mat4x4.row_major()
+
+local m2_col = mat2x2.col_major()
+local m3_col = mat3x3.col_major()
+local m4_col = mat4x4.col_major()
 ```
 
 #### accessing matrix elements
 
 ```lua
-local m = mat4x4()
+local m = mat4x4.row_major()
 
 m.set(0, 0, 1.0)
 m.set(0, 1, 2.0)
@@ -2172,8 +2176,8 @@ print("element at [0,0]: " .. value)
 #### matrix operations
 
 ```lua
-local m1 = mat3x3()
-local m2 = mat3x3()
+local m1 = mat3x3.row_major()
+local m2 = mat3x3.row_major()
 
 m1.identity()
 m2.identity()
@@ -2192,7 +2196,7 @@ local det = m1.determinant()
 #### matrix properties
 
 ```lua
-local m = mat4x4()
+local m = mat4x4.row_major()
 
 print("rows: " .. m.rows)
 print("columns: " .. m.columns)
@@ -2201,17 +2205,31 @@ m.clear()
 m.identity()
 ```
 
+#### storage ordering
+
+row major stores elements row-by-row in memory, column major stores column-by-column. the choice affects how matrices interact with graphics apis:
+
+```lua
+local row_major = mat4x4.row_major()
+row_major.identity()
+
+local col_major = mat4x4.col_major()
+col_major.identity()
+```
+
+both orderings provide the same operations and interface, only the internal memory layout differs.
+
 #### practical example
 
 ```lua
-local view_matrix = mat4x4()
+local view_matrix = mat4x4.row_major()
 view_matrix.identity()
 
 view_matrix.set(0, 3, 10.0)
 view_matrix.set(1, 3, 5.0)
 view_matrix.set(2, 3, 20.0)
 
-local projection_matrix = mat4x4()
+local projection_matrix = mat4x4.row_major()
 projection_matrix.identity()
 
 local view_projection = projection_matrix * view_matrix
@@ -2282,6 +2300,51 @@ elseif delta < -180.0 then
 end
 
 print("shortest rotation: " .. delta .. " degrees")
+```
+
+### projection
+
+viewport management and field of view control.
+
+#### viewport
+
+screen dimensions and aspect ratio.
+
+```lua
+local vp = viewport()
+vp.width = 1920
+vp.height = 1080
+
+local aspect = vp.aspect_ratio
+print("aspect ratio: " .. aspect)
+```
+
+#### field of view
+
+fov angles with clamping to valid range (0-180 degrees).
+
+```lua
+local camera_fov = fov(90.0)
+print("fov: " .. camera_fov.degrees .. " degrees")
+print("fov: " .. camera_fov.radians .. " radians")
+
+camera_fov.set_degrees(110.0)
+
+camera_fov.set_radians(1.5708)
+
+local current_degrees = camera_fov.degrees
+local current_radians = camera_fov.radians
+```
+
+#### error codes
+
+projection operations can fail with specific error codes.
+
+```lua
+local errors = {
+    world_position_out_of_bounds = projection_error.world_position_out_of_bounds,
+    inv_view_proj_det_zero = projection_error.inv_view_proj_det_zero
+}
 ```
 
 ## best practices
