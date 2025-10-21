@@ -1059,6 +1059,65 @@ center = tri.mid_point()
 
 get center point of triangle.
 
+### 3d primitives
+
+functions to create 3D geometric primitives as triangle arrays.
+
+#### create_box
+
+```lua
+triangles = create_box(top, bottom, dir_forward, dir_right, ratio)
+triangles = create_box(top, bottom, dir_forward, dir_right)
+```
+
+create a 3D box from top and bottom points.
+
+**parameters:**
+- `top` (vec3) - top center point of box
+- `bottom` (vec3) - bottom center point of box
+- `dir_forward` (vec3) - forward direction vector
+- `dir_right` (vec3) - right direction vector
+- `ratio` (float, optional) - size ratio, default is 4.0
+
+**returns:**
+- array of 12 triangles forming the box
+
+**example:**
+```lua
+local top = vec3(0, 0, 10)
+local bottom = vec3(0, 0, 0)
+local forward = vec3(1, 0, 0)
+local right = vec3(0, 1, 0)
+
+local box = create_box(top, bottom, forward, right, 5.0)
+```
+
+#### create_plane
+
+```lua
+triangles = create_plane(vertex_a, vertex_b, direction, size)
+```
+
+create a 2D plane from two vertices.
+
+**parameters:**
+- `vertex_a` (vec3) - first vertex of plane
+- `vertex_b` (vec3) - second vertex of plane
+- `direction` (vec3) - direction to extend plane
+- `size` (float) - size of plane
+
+**returns:**
+- array of 2 triangles forming the plane
+
+**example:**
+```lua
+local v1 = vec3(0, 0, 0)
+local v2 = vec3(10, 0, 0)
+local dir = vec3(0, 0, 1)
+
+local plane = create_plane(v1, v2, dir, 10.0)
+```
+
 ---
 
 ## utilities
